@@ -14,7 +14,7 @@ type dataLocation struct {
 	entryType uint32 //Data type
 	id        uint32 //Data ID
 
-	colorBytes []byte
+	colorBytes []uint16
 	name       string
 	imageID    uint32
 	colorID    uint32

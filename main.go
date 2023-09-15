@@ -263,10 +263,9 @@ func readImages(inbuf *bytes.Reader) {
 		for i := 0; i < width*height; i++ {
 
 			var outcolor color.RGBA
-
-			outcolor.B = palette[iPalette[imageData[i]]*3+2]
-			outcolor.G = palette[iPalette[imageData[i]]*3+1]
-			outcolor.R = palette[iPalette[imageData[i]]*3+0]
+			outcolor.B = uint8(palette[iPalette[imageData[i]]*3+2])
+			outcolor.G = uint8(palette[iPalette[imageData[i]]*3+1])
+			outcolor.R = uint8(palette[iPalette[imageData[i]]*3+0])
 
 			/* Alpha mask */
 			if outcolor.R == 0xFF && outcolor.G == 0xFF && outcolor.B == 0xFF {
@@ -317,13 +316,12 @@ func readImages(inbuf *bytes.Reader) {
 func readColors(inbuf *bytes.Reader) {
 	for _, clr := range ColorLocationMap {
 		var size int = int(clr.size)
-
-		clr.colorBytes = make([]byte, size)
-
+		clr.colorBytes = make([]uint16, size)
 		inbuf.Seek(int64(clr.offset), io.SeekStart)
 
 		for z := 0; z < size; z++ {
-			clr.colorBytes[z], _ = inbuf.ReadByte()
+			cTmp, _ := inbuf.ReadByte()
+			clr.colorBytes[z] = uint16(cTmp)
 		}
 	}
 }
