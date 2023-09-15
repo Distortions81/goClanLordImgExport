@@ -9,6 +9,7 @@ Alt: Go to dir, go run .<br>
 <br>
 Note:<br>
 The program will create a directory called out, and will save 7000+ PNG images from the CL_Images file.<br>
+If found in the images file, the image name will be included as well (id-0033-pokey ring.png).<br>
 This software is unlicence (completely free).<br>
 
 
