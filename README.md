@@ -9,6 +9,6 @@ Alt: Go to dir, go run .<br>
 <br>
 Note:<br>
 The program will create a directory called out, and will save 7000+ PNG images from the CL_Images file.<br>
-This software is unlicence (compeletely free).<br>
+This software is unlicence (completely free).<br>
 
 
