@@ -1,5 +1,5 @@
 # goClanLordImgExport
-Easy way: Copy CL_Images info directory and run CLImgExport.exe
+Easy way: Copy CL_Images into directory and run CLImgExport.exe
 
 Harder way:
 Download golang 1.20 or higher
