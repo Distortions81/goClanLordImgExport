@@ -283,7 +283,6 @@ func readImages(inbuf *bytes.Reader) {
 			filename = fmt.Sprintf("out/id-%04d-%v.png", ref.id, NameLookup[ref.id].name)
 		} else {
 			filename = fmt.Sprintf("out/id-%04d.png", ref.id)
-			//fmt.Println("Unable to find name for id.")
 		}
 
 		file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
