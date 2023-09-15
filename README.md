@@ -16,5 +16,4 @@ The program will create a directory called out, and will save 7000+ PNG images f
 If found in the images file, the image name will be included as well (id-0123-item name.png).<br>
 This software is unlicence (completely free).<br>
 <br>
-
-
+This project is based on: https://github.com/mpolney/clext/<br>
