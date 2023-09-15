@@ -301,7 +301,7 @@ func readImages(inbuf *bytes.Reader) {
 		}
 		file.Close()
 
-		//fmt.Printf("Wrote %v (%v,%v)\n", filename, width, height)
+		fmt.Printf("Wrote %v (%v,%v)\n", filename, width, height)
 		if z != 0 {
 			fmt.Print("\033[1A\033[K")
 		}
