@@ -1,4 +1,7 @@
 # goClanLordImgExport
+This utility is for exporting images from the Clan Lord MMO game.<br>
+https://www.deltatao.com/clanlord/<br>
+<br>
 Easy way: Copy CL_Images into directory and run CLImgExport binary for your platform.<br>
 (binaries available under "releases")<br>
 <br>
@@ -12,5 +15,6 @@ Note:<br>
 The program will create a directory called out, and will save 7000+ PNG images from the CL_Images file.<br>
 If found in the images file, the image name will be included as well (id-0033-pokey ring.png).<br>
 This software is unlicence (completely free).<br>
+<br>
 
 
