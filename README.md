@@ -3,7 +3,7 @@ This utility is for exporting images from the Clan Lord MMO game.<br>
 https://www.deltatao.com/clanlord/<br>
 <br>
 Easy way: Copy CL_Images into directory and run CLImgExport binary for your platform.<br>
-(binaries available under "releases")<br>
+(binaries available under "releases" tab to the right)<br>
 <br>
 Harder way:<br>
 Download golang 1.20 or higher<br>
