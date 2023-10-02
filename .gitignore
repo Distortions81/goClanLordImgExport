@@ -1,6 +1,3 @@
 CL_Images
 out/*
-CLImgExport-linux-amd64
-CLImgExport-osx-amd64
-CLImgExport-osx-arm64
-CLImgExport-windows-amd64.exe
+CLImgExport*.zip
