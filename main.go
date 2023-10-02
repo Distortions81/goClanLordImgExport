@@ -10,7 +10,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 
+	"github.com/remeh/sizedwaitgroup"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -47,7 +49,7 @@ func main() {
 	readColors(inbuf)
 
 	fmt.Println("Reading all TYPE_IMAGE")
-	readImages(inbuf)
+	readImages(&data)
 
 }
 
@@ -160,154 +162,160 @@ func readNames(inbuf *bytes.Reader) {
 	}
 }
 
-func readImages(inbuf *bytes.Reader) {
-
-	var w, h uint16
-	var padOne uint32
-	var v, b byte
-
-	var width, height int
-	var valueW, blockLenW int
+func readImages(data *[]byte) {
 
 	os.Mkdir("out", 0755)
 	numItems := uint32(len(IDREFMap) - 1)
 
 	var z uint32
+	wg := sizedwaitgroup.New(runtime.NumCPU())
 
 	for z = 1; z < numItems; z++ {
-		ref := IDREFMap[z]
+		wg.Add()
+		go func(z uint32) {
 
-		img := ImageLocationMap[ref.imageID]
-		bitBuf := New(inbuf)
+			defer wg.Done()
 
-		if img == nil {
-			fmt.Printf("Image %v not found.\n", ref.imageID)
-			continue
-		}
+			var w, h uint16
+			var padOne uint32
+			var v, b byte
 
-		inbuf.Seek(int64(img.offset), io.SeekStart)
+			var width, height int
+			var valueW, blockLenW int
 
-		binary.Read(inbuf, binary.BigEndian, &h)
-		binary.Read(inbuf, binary.BigEndian, &w)
+			ref := IDREFMap[z]
 
-		binary.Read(inbuf, binary.BigEndian, &padOne)
-		binary.Read(inbuf, binary.BigEndian, &v)
-		binary.Read(inbuf, binary.BigEndian, &b)
+			img := ImageLocationMap[ref.imageID]
+			inbuf := bytes.NewReader(*data)
+			bitBuf := New(inbuf)
 
-		width = int(w)
-		height = int(h)
+			if img == nil {
+				fmt.Printf("Image %v not found.\n", ref.imageID)
+				return
+			}
 
-		valueW = int(v)
-		blockLenW = int(b)
+			inbuf.Seek(int64(img.offset), io.SeekStart)
 
-		if width == 0 || height == 0 || width >= 65536 || height >= 65536 {
-			fmt.Println("Invalid image.")
-			continue
-		}
+			binary.Read(inbuf, binary.BigEndian, &h)
+			binary.Read(inbuf, binary.BigEndian, &w)
 
-		np := 0
+			binary.Read(inbuf, binary.BigEndian, &padOne)
+			binary.Read(inbuf, binary.BigEndian, &v)
+			binary.Read(inbuf, binary.BigEndian, &b)
 
-		var pixPos, blockPos int
-		pixelCount := int(width * height * 3)
+			width = int(w)
+			height = int(h)
 
-		var imageData []byte = make([]byte, pixelCount)
-		for pixPos < pixelCount {
+			valueW = int(v)
+			blockLenW = int(b)
 
-			blockType, _ := bitBuf.ReadBit()
-			blockSize, _ := bitBuf.ReadInt(blockLenW)
-			blockSize++
+			if width == 0 || height == 0 || width >= 65536 || height >= 65536 {
+				fmt.Println("Invalid image.")
+				return
 
-			if blockType {
-				for blockPos = 0; blockPos < blockSize; blockPos++ {
+			}
+
+			np := 0
+
+			var pixPos, blockPos int
+			pixelCount := int(width * height * 3)
+
+			var imageData []byte = make([]byte, pixelCount)
+			for pixPos < pixelCount {
+
+				blockType, _ := bitBuf.ReadBit()
+				blockSize, _ := bitBuf.ReadInt(blockLenW)
+				blockSize++
+
+				if blockType {
+					for blockPos = 0; blockPos < blockSize; blockPos++ {
+						data, _ := bitBuf.ReadBits(valueW)
+						if np < pixelCount {
+							imageData[np] = data
+							np++
+						} else {
+							break
+						}
+					}
+				} else {
 					data, _ := bitBuf.ReadBits(valueW)
-					if np < pixelCount {
-						imageData[np] = data
-						np++
-					} else {
-						break
+					for blockPos = 0; blockPos < blockSize; blockPos++ {
+						if np < pixelCount {
+							imageData[np] = data
+							np++
+						} else {
+							break
+						}
 					}
 				}
-			} else {
-				data, _ := bitBuf.ReadBits(valueW)
-				for blockPos = 0; blockPos < blockSize; blockPos++ {
-					if np < pixelCount {
-						imageData[np] = data
-						np++
-					} else {
-						break
-					}
+
+				pixPos += blockSize
+			}
+			if pixPos < pixelCount {
+				fmt.Printf("Error reading format (%v)\n", pixPos-pixelCount)
+				return
+
+			}
+
+			upLeft := image.Point{0, 0}
+			lowRight := image.Point{width, height}
+
+			outImage := image.NewRGBA(image.Rectangle{upLeft, lowRight})
+
+			cpal := ColorLocationMap[ref.colorID]
+
+			if cpal == nil {
+				fmt.Println("No color found.")
+				return
+
+			}
+
+			iPalette := cpal.colorBytes
+
+			for i := 0; i < width*height; i++ {
+
+				var outcolor color.RGBA
+				outcolor.B = uint8(palette[iPalette[imageData[i]]*3+2])
+				outcolor.G = uint8(palette[iPalette[imageData[i]]*3+1])
+				outcolor.R = uint8(palette[iPalette[imageData[i]]*3+0])
+
+				/* Alpha mask */
+				if iPalette[imageData[i]] == 0x00 {
+					outcolor.A = 0x00
+				} else {
+					outcolor.A = 0xFF
 				}
+
+				outImage.SetRGBA(i%width, i/width, outcolor)
 			}
 
-			pixPos += blockSize
-		}
-		if pixPos < pixelCount {
-			fmt.Printf("Error reading format (%v)\n", pixPos-pixelCount)
-			continue
-		}
+			filename := ""
 
-		upLeft := image.Point{0, 0}
-		lowRight := image.Point{width, height}
-
-		outImage := image.NewRGBA(image.Rectangle{upLeft, lowRight})
-
-		cpal := ColorLocationMap[ref.colorID]
-
-		if cpal == nil {
-			fmt.Println("No color found.")
-			continue
-		}
-
-		iPalette := cpal.colorBytes
-
-		for i := 0; i < width*height; i++ {
-
-			var outcolor color.RGBA
-			outcolor.B = uint8(palette[iPalette[imageData[i]]*3+2])
-			outcolor.G = uint8(palette[iPalette[imageData[i]]*3+1])
-			outcolor.R = uint8(palette[iPalette[imageData[i]]*3+0])
-
-			/* Alpha mask */
-			if outcolor.R == 0xFF && outcolor.G == 0xFF && outcolor.B == 0xFF {
-				outcolor.A = 0x00
+			if NameLookup[ref.id] != nil && len(NameLookup[ref.id].name) > 0 {
+				filename = fmt.Sprintf("out/id-%04d-%v.png", ref.id, NameLookup[ref.id].name)
 			} else {
-				outcolor.A = 0xFF
+				filename = fmt.Sprintf("out/id-%04d.png", ref.id)
 			}
 
-			outImage.SetRGBA(i%width, i/width, outcolor)
-		}
+			file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
+			if err != nil {
+				fmt.Println(err)
+				file.Close()
+				return
 
-		filename := ""
+			}
 
-		if NameLookup[ref.id] != nil && len(NameLookup[ref.id].name) > 0 {
-			filename = fmt.Sprintf("out/id-%04d-%v.png", ref.id, NameLookup[ref.id].name)
-		} else {
-			filename = fmt.Sprintf("out/id-%04d.png", ref.id)
-		}
+			err = png.Encode(file, outImage)
+			if err != nil {
+				fmt.Println(err)
+				file.Close()
+				return
 
-		file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
-		if err != nil {
-			fmt.Println(err)
+			}
 			file.Close()
-			continue
-		}
-
-		err = png.Encode(file, outImage)
-		if err != nil {
-			fmt.Println(err)
-			file.Close()
-			continue
-		}
-		file.Close()
-
-		if z != 0 {
-			fmt.Print("\033[1A\033[K")
-		}
-		fmt.Printf("Wrote image %v of %v, %%%0.2f complete.\n", z, numItems, (float32(z)/float32(numItems))*100.0)
-
+		}(z)
 	}
-	fmt.Print("\033[1A\033[K")
-	fmt.Printf("Wrote image %v of %v, %%%0.2f complete.\n", numItems, numItems, 100.0)
+	wg.Done()
 	fmt.Println("Complete!")
 }
 
