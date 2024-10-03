@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/remeh/sizedwaitgroup"
@@ -25,11 +26,14 @@ var ColorLocationMap map[uint32]*dataLocation
 var NameLocationMap map[uint32]*dataLocation
 var NameLookup map[uint32]*dataLocation
 
+const CLImagesPath = "CL_Images"
+
 func main() {
 
 	//Read Clan Lord Image file
 	fmt.Println("Reading CL_Images file")
-	data, err := os.ReadFile("CL_Images")
+
+	data, err := os.ReadFile(getBinaryPath() + CLImagesPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -164,7 +168,7 @@ func readNames(inbuf *bytes.Reader) {
 
 func readImages(data *[]byte) {
 
-	os.Mkdir("out", 0755)
+	os.Mkdir(getBinaryPath()+"out", 0755)
 	numItems := uint32(len(IDREFMap) - 1)
 
 	var z uint32
@@ -297,7 +301,7 @@ func readImages(data *[]byte) {
 				filename = fmt.Sprintf("out/id-%04d.png", ref.id)
 			}
 
-			file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
+			file, err := os.OpenFile(getBinaryPath()+filename, os.O_CREATE|os.O_WRONLY, 0755)
 			if err != nil {
 				fmt.Println(err)
 				file.Close()
@@ -330,4 +334,17 @@ func readColors(inbuf *bytes.Reader) {
 			clr.colorBytes[z] = uint16(cTmp)
 		}
 	}
+}
+
+func getBinaryPath() string {
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Fatal("Unable to executable info.")
+	}
+	exePath, err = filepath.Abs(exePath)
+	if err != nil {
+		log.Fatal("Unable to detect binary path.")
+	}
+
+	return filepath.Dir(exePath) + "/"
 }
