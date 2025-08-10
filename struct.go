@@ -7,6 +7,7 @@ const TYPE_NAME = 0x43496d34     //Name
 const TYPE_MYSTERY1 = 0x4c697431 //No idea
 const TYPE_MYSTERY2 = 0x56657273 //No idea
 const TYPE_MYSTERY3 = 0x4c617933 //No idea
+const pictDefCustomColors = 0x2000
 
 type dataLocation struct {
 	offset    uint32 //Location in the file
@@ -18,4 +19,7 @@ type dataLocation struct {
 	name       string
 	imageID    uint32
 	colorID    uint32
+	version    uint32
+	checksum   uint32
+	flags      uint32
 }

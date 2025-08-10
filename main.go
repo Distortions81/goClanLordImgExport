@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/csv"
 	"fmt"
 	"image"
 	"image/color"
@@ -24,9 +25,18 @@ var IDREFMap map[uint32]*dataLocation
 var ImageLocationMap map[uint32]*dataLocation
 var ColorLocationMap map[uint32]*dataLocation
 var NameLocationMap map[uint32]*dataLocation
-var NameLookup map[uint32]*dataLocation
+var NameRecords []nameRecord
 
 const CLImagesPath = "CL_Images"
+
+type nameRecord struct {
+	ImageID uint32
+	NameID  uint32
+	IDOne   uint32
+	IDTwo   uint32
+	IDThree uint32
+	Name    string
+}
 
 func main() {
 
@@ -38,6 +48,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	os.MkdirAll(getBinaryPath()+"out", 0755)
+
 	fmt.Println("Reading index list")
 	inbuf := bytes.NewReader(data)
 
@@ -48,6 +60,7 @@ func main() {
 
 	fmt.Println("Reading all TYPE_NAME")
 	readNames(inbuf)
+	writeNamesCSV()
 
 	fmt.Println("Reading all TYPE_COLOR")
 	readColors(inbuf)
@@ -82,7 +95,6 @@ func readIndex(inbuf *bytes.Reader) {
 	ImageLocationMap = make(map[uint32]*dataLocation, preAlloc)
 	ColorLocationMap = make(map[uint32]*dataLocation, preAlloc)
 	NameLocationMap = make(map[uint32]*dataLocation, preAlloc)
-	NameLookup = make(map[uint32]*dataLocation, preAlloc)
 
 	var i uint32
 	for i = 0; i < entryCount; i++ {
@@ -112,17 +124,27 @@ func readIDREFs(inbuf *bytes.Reader) {
 		//Seek to IDREF
 		inbuf.Seek(int64(entry.offset), io.SeekStart)
 
-		var padOne uint32
+		var version uint32
 		var imageID uint32
 		var colorID uint32
 
-		//Read PDf5 entries
-		binary.Read(inbuf, binary.BigEndian, &padOne)
+		//Read mandatory fields
+		binary.Read(inbuf, binary.BigEndian, &version)
 		binary.Read(inbuf, binary.BigEndian, &imageID)
 		binary.Read(inbuf, binary.BigEndian, &colorID)
 
+		IDREFMap[e].version = version
 		IDREFMap[e].imageID = imageID
 		IDREFMap[e].colorID = colorID
+
+		remaining := int(entry.size) - 12
+		if remaining >= 4 {
+			binary.Read(inbuf, binary.BigEndian, &IDREFMap[e].checksum)
+			remaining -= 4
+		}
+		if remaining >= 4 {
+			binary.Read(inbuf, binary.BigEndian, &IDREFMap[e].flags)
+		}
 	}
 }
 
@@ -162,13 +184,11 @@ func readNames(inbuf *bytes.Reader) {
 			imgId = idThree
 		}
 
-		NameLookup[imgId] = &dataLocation{name: string(buf)}
+		NameRecords = append(NameRecords, nameRecord{ImageID: imgId, NameID: e, IDOne: idOne, IDTwo: idTwo, IDThree: idThree, Name: string(buf)})
 	}
 }
 
 func readImages(data *[]byte) {
-
-	os.Mkdir(getBinaryPath()+"out", 0755)
 	numItems := uint32(len(IDREFMap) - 1)
 
 	var z uint32
@@ -222,7 +242,7 @@ func readImages(data *[]byte) {
 			np := 0
 
 			var pixPos, blockPos int
-			pixelCount := int(width * height * 3)
+			pixelCount := int(width * height)
 
 			var imageData []byte = make([]byte, pixelCount)
 			for pixPos < pixelCount {
@@ -261,6 +281,11 @@ func readImages(data *[]byte) {
 
 			}
 
+			if ref.flags&pictDefCustomColors != 0 && len(imageData) >= width {
+				imageData = imageData[width:]
+				height--
+			}
+
 			upLeft := image.Point{0, 0}
 			lowRight := image.Point{width, height}
 
@@ -293,13 +318,7 @@ func readImages(data *[]byte) {
 				outImage.SetRGBA(i%width, i/width, outcolor)
 			}
 
-			filename := ""
-
-			if NameLookup[ref.id] != nil && len(NameLookup[ref.id].name) > 0 {
-				filename = fmt.Sprintf("out/id-%04d-%v.png", ref.id, NameLookup[ref.id].name)
-			} else {
-				filename = fmt.Sprintf("out/id-%04d.png", ref.id)
-			}
+			filename := fmt.Sprintf("out/%04d.png", ref.id)
 
 			file, err := os.OpenFile(getBinaryPath()+filename, os.O_CREATE|os.O_WRONLY, 0755)
 			if err != nil {
@@ -333,6 +352,30 @@ func readColors(inbuf *bytes.Reader) {
 			cTmp, _ := inbuf.ReadByte()
 			clr.colorBytes[z] = uint16(cTmp)
 		}
+	}
+}
+
+func writeNamesCSV() {
+	file, err := os.Create(getBinaryPath() + "out/names.csv")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	writer.Write([]string{"image_id", "name_id", "id_one", "id_two", "id_three", "name"})
+	for _, r := range NameRecords {
+		writer.Write([]string{
+			fmt.Sprintf("%d", r.ImageID),
+			fmt.Sprintf("%d", r.NameID),
+			fmt.Sprintf("%d", r.IDOne),
+			fmt.Sprintf("%d", r.IDTwo),
+			fmt.Sprintf("%d", r.IDThree),
+			r.Name,
+		})
 	}
 }
 
