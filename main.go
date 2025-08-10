@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -29,6 +30,8 @@ var NameRecords []nameRecord
 
 const CLImagesPath = "CL_Images"
 
+var usePalette = flag.Bool("usePalette", false, "use palette stored within images when available")
+
 type nameRecord struct {
 	ImageID uint32
 	NameID  uint32
@@ -39,6 +42,7 @@ type nameRecord struct {
 }
 
 func main() {
+	flag.Parse()
 
 	//Read Clan Lord Image file
 	fmt.Println("Reading CL_Images file")
@@ -281,25 +285,32 @@ func readImages(data *[]byte) {
 
 			}
 
+			cpal := ColorLocationMap[ref.colorID]
+			var iPalette []uint16
+
 			if ref.flags&pictDefCustomColors != 0 && len(imageData) >= width {
+				if *usePalette {
+					iPalette = make([]uint16, width)
+					for i := 0; i < width; i++ {
+						iPalette[i] = uint16(imageData[i])
+					}
+				}
 				imageData = imageData[width:]
 				height--
+			}
+
+			if iPalette == nil {
+				if cpal == nil {
+					fmt.Println("No color found.")
+					return
+				}
+				iPalette = cpal.colorBytes
 			}
 
 			upLeft := image.Point{0, 0}
 			lowRight := image.Point{width, height}
 
 			outImage := image.NewRGBA(image.Rectangle{upLeft, lowRight})
-
-			cpal := ColorLocationMap[ref.colorID]
-
-			if cpal == nil {
-				fmt.Println("No color found.")
-				return
-
-			}
-
-			iPalette := cpal.colorBytes
 
 			for i := 0; i < width*height; i++ {
 
